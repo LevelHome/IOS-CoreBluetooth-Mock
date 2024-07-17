@@ -108,7 +108,16 @@ public class CBMCentralManagerNative: CBMCentralManager {
         #endif
         
         private func getPeripheral(_ peripheral: CBPeripheral) -> CBMPeripheralNative {
-            return manager.peripherals[peripheral.identifier] ?? newPeripheral(peripheral)
+            guard let cachedPeripheral = manager.peripherals[peripheral.identifier] else {
+                return newPeripheral(peripheral)
+            }
+
+            // In iOS 17 the CBPeripheral may be a different instance with the same identifier
+            guard cachedPeripheral.peripheral === peripheral else {
+                return newPeripheral(peripheral)
+            }
+
+            return cachedPeripheral
         }
         
         private func newPeripheral(_ peripheral: CBPeripheral) -> CBMPeripheralNative {
@@ -209,7 +218,7 @@ public class CBMCentralManagerNative: CBMCentralManager {
     public override func retrievePeripherals(withIdentifiers identifiers: [UUID]) -> [CBMPeripheral] {
         let retrievedPeripherals = manager.retrievePeripherals(withIdentifiers: identifiers)
         retrievedPeripherals
-            .filter { peripherals[$0.identifier] == nil }
+            .filter { peripherals[$0.identifier] == nil || peripherals[$0.identifier]?.peripheral !== $0 }
             .forEach { peripherals[$0.identifier] = CBMPeripheralNative($0) }
         return peripherals
             .filter { identifiers.contains($0.key) }
@@ -220,7 +229,7 @@ public class CBMCentralManagerNative: CBMCentralManager {
     public override func retrieveConnectedPeripherals(withServices serviceUUIDs: [CBMUUID]) -> [CBMPeripheral] {
         let retrievedPeripherals = manager.retrieveConnectedPeripherals(withServices: serviceUUIDs)
         retrievedPeripherals
-            .filter { peripherals[$0.identifier] == nil }
+            .filter { peripherals[$0.identifier] == nil || peripherals[$0.identifier]?.peripheral !== $0 }
             .forEach { peripherals[$0.identifier] = CBMPeripheralNative($0) }
         return peripherals
             .filter { entry in retrievedPeripherals.contains(where: { $0.identifier == entry.key }) }
